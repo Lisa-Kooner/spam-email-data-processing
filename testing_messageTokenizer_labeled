@@ -1,0 +1,86 @@
+#!/bin/bash
+
+#
+# testing_messageTokenizer_labeled
+# --------------------------------
+# Tokenizes message content from extracted test data and preserves labels.
+# Produces output in the format:
+#       ["word1", "word2", ...]|label
+#
+# Operations:
+#   - Lowercasing
+#   - Removing punctuation
+#   - Splitting into tokens
+#
+# Input:
+#   <extracted_data_file>   (email|message|label)
+#
+# Output:
+#   testing_tokenized_messages_labeled.txt
+#
+# Usage:
+#   ./testing_messageTokenizer_labeled <extracted_data_file>
+#
+
+
+help() {
+    cat << EOF
+messageTokenizer - Message Tokenizer with Labels for Testing
+
+Tokenizes message content into word arrays for text processing.
+
+USAGE: messageTokenizer [OPTIONS] <extracted_data_file>
+
+ARGUMENTS:
+    <extracted_data_file>    Path to file containing extracted email data in format: email|message|label
+
+OPTIONS:
+    --help                  Show this help message and exit
+
+DESCRIPTION:
+    This script processes extracted email data and tokenizes the message content by:
+    - Converting to lowercase
+    - Removing punctuation and special characters
+    - Splitting into individual words
+    - Formatting as a style arrays: ["word1", "word2", "word3"]
+    
+    Input format: email|message_content|label
+    Output format: ["token1", "token2", "token3"]|label
+
+EXAMPLES:
+    messageTokenizer relevantData.txt     # Tokenize messages from extracted data
+    messageTokenizer --help               # Show this help message
+EOF
+}
+
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    help
+    exit 0
+fi
+
+if [ $# -ne 1 ]; then
+    echo "Error: Missing input file" >&2
+    exit 1
+fi
+
+input_file="$1"
+output_file="testing_tokenized_messages_labeled.txt"
+
+if [ ! -f "$input_file" ]; then
+    echo "Error: File '$input_file' not found!" >&2
+    exit 1
+fi
+
+while IFS='|' read -r email message label; do
+    if [ -n "$message" ]; then
+        tokens=$(echo "$message" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-zA-Z0-9]/ /g' | tr -s ' ' | sed 's/^ //' | sed 's/ $//')
+        if [ -n "$tokens" ]; then
+            array_format=$(echo "$tokens" | sed 's/ /", "/g')
+            echo "[\"$array_format\"]|$label"
+        else
+            echo "[]|$label"
+        fi
+    else
+        echo "[]|$label"
+    fi
+done < "$input_file" > "$output_file"

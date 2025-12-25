@@ -1,0 +1,82 @@
+#!/bin/bash
+
+#
+# testing_dataExtractor
+# ---------------------
+# Extracts the sender email (column 6), message content, and label from a
+# cleaned testing CSV file from the Enron dataset. Produces output in the
+# format:
+#       email|message|label
+#
+# Input:
+#   <input_csv_file>  cleaned, single-line CSV
+#
+# Output:
+#   testing_relevantData.txt
+#
+# Usage:
+#   ./testing_dataExtractor <input_csv_file>
+#
+# Notes:
+#   - Uses cut/grep/sed to extract fields.
+#   - Handles both standard and fallback message patterns.
+
+
+help() {
+    cat << EOF
+dataExtractor - Email Data Extractor for Testing
+
+Extracts email addresses, message content, and labels from CSV files containing email data.
+
+USAGE: extract_emails [OPTIONS] <input_csv_file>
+
+OPTIONS:
+    --help    Show this help message and exit
+
+Output format:
+    email|message_content|label
+EOF
+}
+
+# Help flag
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    help
+    exit 0
+fi
+
+if [ $# -ne 1 ]; then
+    echo "Error: Missing input file" >&2
+    exit 1
+fi
+
+input_file="$1"
+output_file="testing_relevantData.txt"
+
+if [ ! -f "$input_file" ]; then
+    echo "Error: File '$input_file' not found!" >&2
+    exit 1
+fi
+
+# Process file
+tail -n +2 "$input_file" | while IFS= read -r line; do
+
+    # 6th column = email
+    email=$(echo "$line" | cut -d',' -f6)
+
+    # Extract the message content
+    message=$(echo "$line" | grep -o ',"[^"]*", , , , , ,' | sed 's/^,"//' | sed 's/", , , , , ,$//')
+
+    # Fallback message extraction if pattern doesn't match
+    if [ -z "$message" ]; then
+        message=$(echo "$line" | sed -n 's/.*,\(.*\), , , , , ,.*/\1/p')
+    fi
+
+    # Extract final label (0 or 1)
+    label=$(echo "$line" | grep -o '[01]$')
+
+    # Skip if message is empty
+    if [ -n "$message" ]; then
+        echo "${email}|${message}|${label}"
+    fi
+
+done > "$output_file"

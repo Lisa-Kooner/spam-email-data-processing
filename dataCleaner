@@ -1,0 +1,25 @@
+#
+# dataCleaner
+# ------------------------------------
+# Cleans the extracted Enron dataset by removing multi-section or malformed
+# lines. Keeps only valid entries that:
+#   - Start with "maildir"
+#   - End with ",0" or ",1" (valid labels)
+#
+# Input:
+#   enron_data_fraud_labeled.csv
+#
+# Output:
+#   enron_cleaned_dataset.csv
+#
+# Usage:
+#   ./dataCleaner
+#
+
+
+awk '
+  # Keep only lines that begin with maildir and end with ,0 or ,1
+  /^maildir/ && /,(0|1)$/ {
+      print
+  }
+' enron_data_fraud_labeled.csv > enron_cleaned_dataset.csv

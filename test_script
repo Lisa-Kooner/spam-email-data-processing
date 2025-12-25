@@ -1,0 +1,147 @@
+#!/bin/bash
+#
+# Test framework for email processing scripts (fixed for current script outputs)
+#
+
+declare -i tc=0
+declare -i fails=0
+
+TEST_CSV=$(mktemp)
+TEST_EXTRACTED=$(mktemp)
+TEST_TOKENIZED=$(mktemp)
+
+cleanup() {
+    rm -f "$TEST_CSV" "$TEST_EXTRACTED" "$TEST_TOKENIZED"
+}
+trap cleanup EXIT
+
+test() {
+    tc=tc+1
+    local COMMAND=$1
+    local RETURN=$2
+    local STDIN=$3
+    local STDOUT=$4
+    local STDERR=$5
+
+    # CHECK RETURN VALUE
+    $COMMAND <<< "$STDIN" >/dev/null 2>/dev/null
+    local A_RETURN=$?
+
+    if [[ "$A_RETURN" != "$RETURN" ]]; then
+        echo "Test $tc Failed"
+        echo "   $COMMAND"
+        echo "   Expected Return: $RETURN"
+        echo "   Actual Return: $A_RETURN"
+        fails=$fails+1
+        return 1
+    fi
+
+    # CHECK STDOUT
+    local A_STDOUT=$($COMMAND <<< "$STDIN" 2>/dev/null)
+    if [[ "$STDOUT" != "$A_STDOUT" ]]; then
+        echo "Test $tc Failed"
+        echo "   $COMMAND"
+        echo "   Expected STDOUT: $STDOUT"
+        echo "   Actual STDOUT: $A_STDOUT"
+        fails=$fails+1
+        return 2
+    fi
+
+    # CHECK STDERR
+    local A_STDERR=$($COMMAND <<< "$STDIN" 2>&1 >/dev/null)
+    if [[ "$STDERR" != "$A_STDERR" ]]; then
+        echo "Test $tc Failed"
+        echo "   $COMMAND"
+        echo "   Expected STDERR: $STDERR"
+        echo "   Actual STDERR: $A_STDERR"
+        fails=$fails+1
+        return 3
+    fi
+
+    echo "Test $tc Passed"
+    return 0
+}
+
+##########################################
+# SETUP TEST DATA
+##########################################
+
+cat > "$TEST_CSV" << 'EOF'
+Folder-User,Folder-Name,Message-ID,Date,From,To,Subject,Mime-Version,Content-Type,Content-Transfer-Encoding,X-From,X-To,X-cc,X-bcc,X-Folder,X-Origin,X-FileName,Body,Cc,Bcc,Time,Attendees,Re,Source,Mail-ID,POI-Present,Suspicious-Folders,Sender-Type,Unique-Mails-From-Sender,Low-Comm,Contains-Reply-Forwards,Label
+maildir,test-user,<12345>,"Mon, 1 Jan 2000 12:00:00 -0000",test1@example.com,user@enron.com,Test Subject 1,1.0,text/plain,7bit,"Test User","User",,,,Folder,Origin,File,"Hello world, this is test message one", , , , , ,Source,ID,False,False,External,1,False,False,0
+maildir,test-user,<67890>,"Tue, 2 Jan 2000 12:00:00 -0000",test2@sample.org,user@enron.com,Test Subject 2,1.0,text/plain,7bit,"Test User","User",,,,Folder,Origin,File,"Another test message here", , , , , ,Source,ID,False,False,External,1,False,False,1
+EOF
+
+##########################################
+# TEST CASES FOR DATAEXTRACTOR SCRIPT
+##########################################
+
+echo "=== Testing DataExtractor Script ==="
+
+
+# Test 1: Missing file
+test './testing_dataExtractor' 1 '' '' 'Error: Missing input file'
+
+# Test 2: File not found
+test './testing_dataExtractor nonexistent.csv' 1 '' '' "Error: File 'nonexistent.csv' not found!"
+
+# Test 3: Successful extraction
+test './testing_dataExtractor '"$TEST_CSV" 0 '' '' ''
+
+# Test 4: Check extraction output file exists and has content
+if [ -f "testing_relevantData.txt" ] && [ -s "testing_relevantData.txt" ]; then
+    echo "Test $((tc+1)) Passed (Output file created with content)"
+else
+    echo "Test $((tc+1)) Failed (Output file missing or empty)"
+    fails=$fails+1
+fi
+tc=tc+1
+
+##########################################
+# TEST CASES FOR MESSAGETOKENIZER SCRIPT
+##########################################
+
+echo ""
+echo "=== Testing MessageTokenizer Script ==="
+
+cat > "$TEST_EXTRACTED" << 'EOF'
+test1@example.com|Hello world, this is test message one|0
+test2@sample.org|Another test message here|1
+EOF
+
+# Test 5: Missing file
+test './testing_messageTokenizer_labeled' 1 '' '' 'Error: Missing input file'
+
+# Test 6: File not found
+test './testing_messageTokenizer_labeled nonexistent.txt' 1 '' '' "Error: File 'nonexistent.txt' not found!"
+
+# Test 7: Successful tokenization
+test './testing_messageTokenizer_labeled '"$TEST_EXTRACTED" 0 '' '' ''
+
+# Test 8: Check tokenization output (keep labels)
+expected_output='["hello", "world", "this", "is", "test", "message", "one"]|0
+["another", "test", "message", "here"]|1'
+actual_output=$(cat testing_tokenized_messages_labeled.txt 2>/dev/null)
+
+if [[ "$expected_output" == "$actual_output" ]]; then
+    echo "Test $((tc+1)) Passed (Tokenization output correct)"
+else
+    echo "Test $((tc+1)) Failed (Tokenization output incorrect)"
+    echo "   Expected: $expected_output"
+    echo "   Actual: $actual_output"
+    fails=$fails+1
+fi
+tc=tc+1
+
+##########################################
+# CLEANUP AND FINAL RESULTS
+##########################################
+
+rm -f testing_relevantData.txt testing_tokenized_messages_labeled.txt
+
+echo ""
+echo "=== Test Results ==="
+echo "Total tests: $tc"
+echo "Failed tests: $fails"
+
+exit $fails
