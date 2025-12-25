@@ -2,9 +2,9 @@ name: CI - Test Email Processing Scripts
 
 on:
   push:
-    branches: [ "data-processing-Lisa" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "data-processing-Lisa" ]
+    branches: [ "main" ]
 
 jobs:
   test:
