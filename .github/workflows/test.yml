@@ -1,0 +1,27 @@
+name: CI - Test Email Processing Scripts
+
+on:
+  push:
+    branches: [ "data-processing-Lisa" ]
+  pull_request:
+    branches: [ "data-processing-Lisa" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Tests
+        run: ./test_script > test_results.txt
+
+      - name: Display Test Results
+        run: cat test_results.txt
+
+      - name: Upload Test Results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Test Results
+          path: ./test_results.txt
